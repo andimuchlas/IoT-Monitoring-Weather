@@ -9,6 +9,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "db:seed": "bun src/db/seeder.ts",
     "db:studio": "drizzle-kit studio",
     "test": "bun test"
   },

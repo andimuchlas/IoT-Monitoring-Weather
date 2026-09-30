@@ -9,6 +9,7 @@
     "db:generate": "bun --filter api db:generate",
     "db:migrate": "bun --filter api db:migrate",
     "db:push": "bun --filter api db:push",
+    "db:seed": "bun --filter api db:seed",
     "db:studio": "bun --filter api db:studio",
     "test:api": "bun --filter api test",
     "format": "prettier --write .",
