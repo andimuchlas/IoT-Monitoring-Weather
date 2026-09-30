@@ -1,18 +1,44 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
+import app from "./app";
+import { env } from "./configs/env";
+import { checkDatabaseConnection } from "./db";
 
-const app = new Hono();
+const port = env.PORT ? Number(env.PORT) : 3001;
 
-app.use("*", logger());
-app.use("*", cors());
+async function bootstrap() {
+  console.log("Checking service dependencies...");
 
-app.get("/healthz", (c) => c.json({ status: "ok" }));
+  const postgresConnected = await checkDatabaseConnection();
+  if (!postgresConnected) {
+    throw new Error("PostgreSQL connection failed");
+  }
 
-const port = Number(process.env.PORT) || 3001;
-console.log(`🚀 API Server running on port ${port}`);
-
-export default {
+  const server = Bun.serve({
+    hostname: "0.0.0.0",
     port,
     fetch: app.fetch,
-};
+  });
+
+  console.log("Service status:");
+  console.log(`- API: running on http://0.0.0.0:${port}`);
+  console.log("- PostgreSQL: connected");
+
+  let isShuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (isShuttingDown) {
+      return;
+    }
+    isShuttingDown = true;
+
+    console.log(`🛑 Received ${signal}, shutting down...`);
+    server.stop(true);
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+void bootstrap().catch((error) => {
+  console.error("❌ Failed to start server", error);
+  process.exit(1);
+});
