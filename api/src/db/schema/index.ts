@@ -1,4 +1,11 @@
-// Export all schema tables here
-// Example:
-// export * from "./devices";
-// export * from "./sensors";
+export * from "./locations";
+export * from "./users";
+export * from "./devices";
+export * from "./device-status-history";
+export * from "./sensor-types";
+export * from "./sensors";
+export * from "./sensor-installations";
+export * from "./sensor-calibrations";
+export * from "./sensor-readings";
+export * from "./reading-aggregates";
+export * from "./relations";

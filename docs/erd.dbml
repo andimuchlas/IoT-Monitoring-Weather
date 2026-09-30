@@ -1,0 +1,167 @@
+Project weather_station_iot {
+  database_type: 'PostgreSQL'
+}
+
+Enum device_status {
+  provisioned
+  active
+  maintenance
+  decommissioned
+}
+
+Enum user_role {
+  admin
+  operator
+  viewer
+}
+
+Enum sensor_status {
+  active
+  maintenance
+  faulty
+  decommissioned
+}
+
+Enum quality_flag {
+  good
+  out_of_range
+  sensor_error
+  uncalibrated
+  future_timestamp
+  duplicate
+}
+
+Table locations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(150) [not null]
+  latitude double [not null]
+  longitude double [not null]
+  altitude double
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null]
+  email varchar(150) [unique, not null]
+  password_hash text [not null]
+  role user_role [not null, default: 'viewer']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table devices {
+  id varchar(50) [pk]
+  name varchar(150) [not null]
+  location_id uuid [ref: > locations.id]
+  api_key_hash text [not null]
+  status device_status [not null, default: 'provisioned']
+  firmware_version varchar(50)
+  battery_v double
+  rssi integer
+  last_seen_at timestamptz
+  deleted_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table device_status_history {
+  id uuid [pk, default: `gen_random_uuid()`]
+  device_id varchar(50) [not null, ref: > devices.id]
+  old_status device_status
+  new_status device_status [not null]
+  changed_by uuid [ref: > users.id]
+  reason text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table sensor_types {
+  id varchar(50) [pk]
+  name varchar(100) [not null]
+  unit varchar(30) [not null]
+  min_val double [not null]
+  max_val double [not null]
+  precision integer [not null, default: 2]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table sensors {
+  id uuid [pk, default: `gen_random_uuid()`]
+  serial_number varchar(100) [unique, not null]
+  name varchar(100) [not null]
+  sensor_type_id varchar(50) [not null, ref: > sensor_types.id]
+  status sensor_status [not null, default: 'active']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table sensor_installations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  device_id varchar(50) [not null, ref: > devices.id]
+  sensor_id uuid [not null, ref: > sensors.id]
+  installed_at timestamptz [not null, default: `now()`]
+  uninstalled_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    device_id [name: 'sensor_installations_device_idx']
+    sensor_id [name: 'sensor_installations_sensor_idx']
+    (device_id, uninstalled_at) [name: 'sensor_installations_active_idx']
+  }
+}
+
+Table sensor_calibrations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  sensor_id uuid [not null, ref: > sensors.id]
+  scale double [not null, default: 1.0]
+  offset double [not null, default: 0.0]
+  effective_from timestamptz [not null]
+  notes text
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (sensor_id, effective_from) [name: 'sensor_calibrations_lookup_idx']
+  }
+}
+
+Table sensor_readings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  time timestamptz [not null]
+  device_id varchar(50) [not null, ref: > devices.id]
+  sensor_id uuid [not null, ref: > sensors.id]
+  sensor_type_id varchar(50) [not null, ref: > sensor_types.id]
+  raw_value double [not null]
+  value double [not null]
+  quality_flag quality_flag [not null, default: 'good']
+  server_time timestamptz [not null, default: `now()`]
+  seq integer
+
+  indexes {
+    (device_id, sensor_id, time) [unique, name: 'sensor_readings_idempotency_idx']
+    (sensor_id, time) [name: 'sensor_readings_sensor_time_idx']
+    (device_id, time) [name: 'sensor_readings_device_time_idx']
+    (device_id, sensor_type_id, time) [name: 'sensor_readings_device_type_time_idx']
+  }
+}
+
+Table reading_aggregates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  bucket timestamptz [not null]
+  interval varchar(10) [not null]
+  device_id varchar(50) [not null, ref: > devices.id]
+  sensor_id uuid [not null, ref: > sensors.id]
+  sensor_type_id varchar(50) [not null, ref: > sensor_types.id]
+  avg_value double
+  min_value double
+  max_value double
+  sum_value double
+  reading_count integer [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (device_id, sensor_id, bucket, interval) [unique, name: 'reading_aggregates_unique_idx']
+    (device_id, sensor_type_id, interval, bucket) [name: 'reading_aggregates_query_idx']
+  }
+}

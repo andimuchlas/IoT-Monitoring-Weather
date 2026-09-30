@@ -3,6 +3,15 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev:api": "bun --filter api dev",
+    "dev:web": "bun --filter web dev",
+    "db:generate": "bun --filter api db:generate",
+    "db:migrate": "bun --filter api db:migrate",
+    "db:push": "bun --filter api db:push",
+    "db:studio": "bun --filter api db:studio",
+    "test:api": "bun --filter api test"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
