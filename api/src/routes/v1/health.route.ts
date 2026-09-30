@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppBindings } from "../../lib/create-app";
+import type { AppBindings } from "../../app";
 
 const health = new Hono<AppBindings>();
 

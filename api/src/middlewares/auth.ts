@@ -3,7 +3,7 @@ import { verify } from "hono/jwt";
 import { JWT_SECRET } from "../services/auth/service";
 import type { AuthUserPayload } from "../services/auth/dto";
 import { AppError } from "../services/base.service";
-import type { AppBindings } from "../lib/create-app";
+import type { AppBindings } from "../app";
 
 export const requireAuth = createMiddleware<AppBindings>(async (c, next) => {
   const authHeader = c.req.header("Authorization");

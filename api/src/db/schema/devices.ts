@@ -1,4 +1,13 @@
-import { pgTable, varchar, text, doublePrecision, integer, timestamp, pgEnum, uuid } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  varchar,
+  text,
+  doublePrecision,
+  integer,
+  timestamp,
+  pgEnum,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { locations } from "./locations";
 
 export const deviceStatusEnum = pgEnum("device_status", [

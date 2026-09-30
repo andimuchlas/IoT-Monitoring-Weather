@@ -10,10 +10,21 @@
     "db:migrate": "bun --filter api db:migrate",
     "db:push": "bun --filter api db:push",
     "db:studio": "bun --filter api db:studio",
-    "test:api": "bun --filter api test"
+    "test:api": "bun --filter api test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,css,md,yaml,yml}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9"
   },
   "peerDependencies": {
     "typescript": "^5"

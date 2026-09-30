@@ -1,0 +1,9 @@
+node_modules
+.next
+dist
+build
+out
+bun.lock
+api/drizzle
+api/src/db/migration
+*.log

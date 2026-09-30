@@ -4,7 +4,7 @@ import { loginSchema } from "../../services/auth/dto";
 import { authService } from "../../services/auth/service";
 import { requireAuth } from "../../middlewares/auth";
 import { AppError } from "../../services/base.service";
-import type { AppBindings } from "../../lib/create-app";
+import type { AppBindings } from "../../app";
 
 const auth = new Hono<AppBindings>();
 
