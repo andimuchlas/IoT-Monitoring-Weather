@@ -22,8 +22,11 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
+    "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.3",
+    "drizzle-zod": "^0.8.3",
     "hono": "^4.13.11",
+    "hono-rate-limiter": "^0.5.4",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"
   }
