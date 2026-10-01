@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Bell, ChevronDown, ChevronRight, LogOut, Shield } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Menu, Bell, ChevronRight } from "lucide-react";
 
 interface TopbarProps {
   onToggleMobileMenu?: () => void;
@@ -12,19 +11,6 @@ interface TopbarProps {
 
 export function Topbar({ onToggleMobileMenu }: TopbarProps) {
   const pathname = usePathname();
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicked outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const getPageInfo = () => {
     if (pathname === "/") {
@@ -115,72 +101,24 @@ export function Topbar({ onToggleMobileMenu }: TopbarProps) {
 
         <div className="h-6 w-[1px] bg-slate-200" />
 
-        {/* User Profile Info with Dropdown */}
-        <div ref={dropdownRef} className="relative">
-          <button
-            onClick={() => setIsDropdownOpen((prev) => !prev)}
-            className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group"
-          >
-            {/* Avatar with active indicator */}
-            <div className="relative">
-              <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-blue-100 shadow-xs">
-                AL
-              </div>
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+        {/* Operator Badge & System Status */}
+        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+          <div className="relative">
+            <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-[11px] flex items-center justify-center shadow-xs">
+              AL
             </div>
+            <span
+              className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white"
+              title="Sistem Aktif"
+            />
+          </div>
 
-            {/* Name only (no role or email on topbar) */}
-            <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors hidden sm:inline">
+          <div className="hidden sm:block text-left">
+            <span className="text-xs font-bold text-slate-800 block leading-tight">
               Admin Luwes
             </span>
-
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 transition-transform duration-200 hidden sm:block ${
-                isDropdownOpen ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-
-          {/* User Profile Dropdown Menu */}
-          <AnimatePresence>
-            {isDropdownOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 overflow-hidden"
-              >
-                {/* Profile Header inside Dropdown */}
-                <div className="p-3 bg-slate-50/80 rounded-xl mb-1 border border-slate-100">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-xs font-bold text-slate-900">Admin Luwes</span>
-                    <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
-                      <Shield className="w-2.5 h-2.5" /> Super Admin
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-mono block">
-                    admin@luwes.co.id
-                  </span>
-                </div>
-
-                {/* Logout Button */}
-                <button
-                  onClick={() => {
-                    setIsDropdownOpen(false);
-                    // Clear session / redirect to login if implemented
-                    if (typeof window !== "undefined") {
-                      window.location.href = "/";
-                    }
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                >
-                  <LogOut className="w-4 h-4 text-rose-500" />
-                  <span>Keluar / Logout</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <span className="text-[10px] text-slate-400 font-medium block">Operator Stasiun</span>
+          </div>
         </div>
       </div>
     </header>
