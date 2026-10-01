@@ -13,6 +13,7 @@
     "db:studio": "bun --filter api db:studio",
     "worker:rollup": "bun --filter api worker:rollup",
     "test:api": "bun --filter api test",
+    "simulate": "bun simulator/index.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"

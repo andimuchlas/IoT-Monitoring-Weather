@@ -6,7 +6,7 @@ export async function seedUsers() {
   console.info("  -> Seeding Users...");
 
   const existingAdmin = await db.query.users.findFirst({
-    where: eq(users.email, "admin@luwes.id"),
+    where: eq(users.email, "superadmin@iot.com"),
   });
 
   if (!existingAdmin) {

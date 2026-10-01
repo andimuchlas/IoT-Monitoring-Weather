@@ -54,7 +54,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "bun run db:migrate && bun run start"
+    command: sh -c "bun run db:migrate && bun run db:seed && bun run start"
 
   worker:
     build:

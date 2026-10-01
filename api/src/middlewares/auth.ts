@@ -40,3 +40,17 @@ export const requireAdmin = createMiddleware<AppBindings>(async (c, next) => {
     throw new AppError(401, "INVALID_TOKEN", "Token is invalid or expired");
   }
 });
+
+export const optionalAuth = createMiddleware<AppBindings>(async (c, next) => {
+  const authHeader = c.req.header("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.substring(7).trim();
+    try {
+      const payload = (await verify(token, JWT_SECRET, "HS256")) as unknown as AuthUserPayload;
+      c.set("user", payload);
+    } catch {
+      // Optional auth: ignore invalid tokens for public read endpoints
+    }
+  }
+  await next();
+});

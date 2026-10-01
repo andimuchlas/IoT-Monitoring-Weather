@@ -96,10 +96,13 @@ export class ReadingsService extends BaseService {
       ? new Date(query.from)
       : new Date(toDate.getTime() - 24 * 3600 * 1000);
 
+    const targetDeviceId = query.deviceId || query.device_id;
+    const targetSensorTypeId = query.sensorTypeId || query.sensor_type || query.sensor_type_id;
+
     const diffHours = (toDate.getTime() - fromDate.getTime()) / (3600 * 1000);
 
     let effectiveInterval = query.interval;
-    if (effectiveInterval === "raw") {
+    if (effectiveInterval === "raw" || effectiveInterval === "1m") {
       if (diffHours > 30 * 24) {
         effectiveInterval = "1d";
       } else if (diffHours > 7 * 24) {
@@ -114,11 +117,11 @@ export class ReadingsService extends BaseService {
         eq(readingAggregates.interval, effectiveInterval),
       ];
 
-      if (query.deviceId) {
-        conditions.push(eq(readingAggregates.deviceId, query.deviceId));
+      if (targetDeviceId) {
+        conditions.push(eq(readingAggregates.deviceId, targetDeviceId));
       }
-      if (query.sensorTypeId) {
-        conditions.push(eq(readingAggregates.sensorTypeId, query.sensorTypeId));
+      if (targetSensorTypeId) {
+        conditions.push(eq(readingAggregates.sensorTypeId, targetSensorTypeId));
       }
 
       const rows = await db.query.readingAggregates.findMany({
@@ -131,26 +134,34 @@ export class ReadingsService extends BaseService {
         interval: effectiveInterval,
         forcedDownsampling: effectiveInterval !== query.interval,
         count: rows.length,
-        data: rows.map((r) => ({
-          time: r.bucket.toISOString(),
-          deviceId: r.deviceId,
-          sensorTypeId: r.sensorTypeId,
-          avg: r.avgValue,
-          min: r.minValue,
-          max: r.maxValue,
-          sum: r.sumValue,
-          readingCount: r.readingCount,
-        })),
+        data: rows.map((r) => {
+          let selectedValue = r.avgValue;
+          if (query.agg === "min") selectedValue = r.minValue;
+          else if (query.agg === "max") selectedValue = r.maxValue;
+          else if (query.agg === "sum") selectedValue = r.sumValue;
+
+          return {
+            time: r.bucket.toISOString(),
+            deviceId: r.deviceId,
+            sensorTypeId: r.sensorTypeId,
+            value: selectedValue,
+            avg: r.avgValue,
+            min: r.minValue,
+            max: r.maxValue,
+            sum: r.sumValue,
+            readingCount: r.readingCount,
+          };
+        }),
       });
     }
 
     const conditions = [gte(sensorReadings.time, fromDate), lte(sensorReadings.time, toDate)];
 
-    if (query.deviceId) {
-      conditions.push(eq(sensorReadings.deviceId, query.deviceId));
+    if (targetDeviceId) {
+      conditions.push(eq(sensorReadings.deviceId, targetDeviceId));
     }
-    if (query.sensorTypeId) {
-      conditions.push(eq(sensorReadings.sensorTypeId, query.sensorTypeId));
+    if (targetSensorTypeId) {
+      conditions.push(eq(sensorReadings.sensorTypeId, targetSensorTypeId));
     }
 
     const offset = (query.page - 1) * query.limit;
@@ -163,7 +174,7 @@ export class ReadingsService extends BaseService {
     });
 
     return this.success({
-      interval: "raw",
+      interval: effectiveInterval,
       page: query.page,
       limit: query.limit,
       count: rows.length,
@@ -185,10 +196,11 @@ export class ReadingsService extends BaseService {
       ? new Date(query.from)
       : new Date(toDate.getTime() - 24 * 3600 * 1000);
 
+    const targetDeviceId = query.deviceId || query.device_id;
     const conditions = [gte(sensorReadings.time, fromDate), lte(sensorReadings.time, toDate)];
 
-    if (query.deviceId) {
-      conditions.push(eq(sensorReadings.deviceId, query.deviceId));
+    if (targetDeviceId) {
+      conditions.push(eq(sensorReadings.deviceId, targetDeviceId));
     }
 
     const readings = await db.query.sensorReadings.findMany({

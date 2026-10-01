@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { timeseriesQuerySchema, summaryQuerySchema } from "../../services/readings/dto";
 import { readingsService } from "../../services/readings/service";
-import { requireAuth } from "../../middlewares/auth";
+import { optionalAuth } from "../../middlewares/auth";
 import { AppError } from "../../services/base.service";
 import type { AppBindings } from "../../app";
 
@@ -18,20 +18,37 @@ const validationErrorHook = (result: any) => {
   }
 };
 
-readings.get("/readings/dashboard/overview", requireAuth, async (c) => {
+// 1. Dashboard Overview (Spec: GET /api/v1/dashboard/overview)
+const handleDashboardOverview = async (c: any) => {
   const result = await readingsService.getDashboardOverview();
   return c.json(result);
-});
+};
+readings.get("/dashboard/overview", optionalAuth, handleDashboardOverview);
+readings.get("/readings/dashboard/overview", optionalAuth, handleDashboardOverview);
 
-readings.get("/readings/devices/:deviceId/latest", requireAuth, async (c) => {
-  const deviceId = c.req.param("deviceId");
+// 2. Latest Device Readings (Spec: GET /api/v1/devices/{id}/readings/latest)
+const handleLatestReadings = async (c: any) => {
+  const deviceId = c.req.param("deviceId") || c.req.param("id");
   const result = await readingsService.getLatestDeviceReadings(deviceId);
   return c.json(result);
-});
+};
+readings.get("/devices/:deviceId/readings/latest", optionalAuth, handleLatestReadings);
+readings.get("/readings/devices/:deviceId/latest", optionalAuth, handleLatestReadings);
 
+// 3. Time-Series Readings (Spec: GET /api/v1/readings)
+readings.get(
+  "/readings",
+  optionalAuth,
+  zValidator("query", timeseriesQuerySchema, validationErrorHook),
+  async (c) => {
+    const query = c.req.valid("query");
+    const result = await readingsService.getTimeSeriesReadings(query);
+    return c.json(result);
+  }
+);
 readings.get(
   "/readings/devices/:deviceId/timeseries",
-  requireAuth,
+  optionalAuth,
   zValidator("query", timeseriesQuerySchema, validationErrorHook),
   async (c) => {
     const deviceId = c.req.param("deviceId");
@@ -44,9 +61,20 @@ readings.get(
   }
 );
 
+// 4. Summary Readings (Spec: GET /api/v1/readings/summary)
+readings.get(
+  "/readings/summary",
+  optionalAuth,
+  zValidator("query", summaryQuerySchema, validationErrorHook),
+  async (c) => {
+    const query = c.req.valid("query");
+    const result = await readingsService.getSummary(query);
+    return c.json(result);
+  }
+);
 readings.get(
   "/readings/devices/:deviceId/summary",
-  requireAuth,
+  optionalAuth,
   zValidator("query", summaryQuerySchema, validationErrorHook),
   async (c) => {
     const deviceId = c.req.param("deviceId");

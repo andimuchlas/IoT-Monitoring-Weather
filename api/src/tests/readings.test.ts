@@ -183,4 +183,68 @@ describe("Readings Service", () => {
       (db.query.sensorReadings as any).findFirst = originalFindFirstReading;
     }
   });
+
+  it("handles snake_case query parameters (device_id, sensor_type) and 1m interval", async () => {
+    const originalFindMany = db.query.sensorReadings.findMany;
+
+    (db.query.sensorReadings as any).findMany = async () => [
+      {
+        id: "r-snake",
+        time: new Date("2026-10-01T12:00:00Z"),
+        deviceId: "DEV-SNAKE",
+        sensorTypeId: "temp_air",
+        value: 26.5,
+        rawValue: 26.5,
+        qualityFlag: "good",
+      },
+    ];
+
+    try {
+      const res = await readingsService.getTimeSeriesReadings({
+        device_id: "DEV-SNAKE",
+        sensor_type: "temp_air",
+        interval: "1m",
+      } as any);
+
+      expect(res.success).toBe(true);
+      expect(res.data.interval).toBe("1m");
+      expect(res.data.data.length).toBe(1);
+      expect(res.data.data[0]?.deviceId).toBe("DEV-SNAKE");
+      expect(res.data.data[0]?.value).toBe(26.5);
+    } finally {
+      (db.query.sensorReadings as any).findMany = originalFindMany;
+    }
+  });
+
+  it("HTTP GET /api/v1/dashboard/overview responds with 200 without requiring auth", async () => {
+    const { default: app } = await import("../app");
+    const originalFindManyDevices = db.query.devices.findMany;
+    (db.query.devices as any).findMany = async () => [];
+
+    try {
+      const res = await app.request("/api/v1/dashboard/overview");
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.stations).toBeDefined();
+    } finally {
+      (db.query.devices as any).findMany = originalFindManyDevices;
+    }
+  });
+
+  it("HTTP GET /api/v1/readings responds with 200 without requiring auth", async () => {
+    const { default: app } = await import("../app");
+    const originalFindMany = db.query.sensorReadings.findMany;
+    (db.query.sensorReadings as any).findMany = async () => [];
+
+    try {
+      const res = await app.request("/api/v1/readings?device_id=WS-GRT-001&interval=raw");
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.success).toBe(true);
+      expect(json.data.interval).toBe("raw");
+    } finally {
+      (db.query.sensorReadings as any).findMany = originalFindMany;
+    }
+  });
 });
