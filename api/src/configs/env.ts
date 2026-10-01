@@ -7,6 +7,9 @@ export const env = {
   ORIGIN: process.env.ORIGIN ? parseOrigin(process.env.ORIGIN) : undefined,
   JWT_SECRET: process.env.JWT_SECRET || "iot-weather-station-secret-jwt-key",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
+  REDIS_HOST: process.env.REDIS_HOST || "localhost",
+  REDIS_PORT: process.env.REDIS_PORT || "6379",
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD || undefined,
 };
 
 export function parseOrigin(origin: string): string[] | string | undefined {

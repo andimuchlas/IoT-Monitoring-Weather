@@ -18,6 +18,21 @@ services:
       retries: 5
       start_period: 5s
 
+  redis:
+    image: redis:7-alpine
+    container_name: iot_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   api:
     build:
       context: ./api
@@ -30,12 +45,36 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-iot_db}
       JWT_SECRET: ${JWT_SECRET:-iot-weather-station-secret-jwt-key}
       ORIGIN: ${ORIGIN:-*}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "3001:3001"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     command: sh -c "bun run db:migrate && bun run start"
+
+  worker:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: iot_worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-iot_db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: sh -c "bun run worker:rollup"
 
   web:
     build:
@@ -53,3 +92,4 @@ services:
 
 volumes:
   db_data:
+  redis_data:

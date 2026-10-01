@@ -11,6 +11,7 @@
     "db:push": "bun --filter api db:push",
     "db:seed": "bun --filter api db:seed",
     "db:studio": "bun --filter api db:studio",
+    "worker:rollup": "bun --filter api worker:rollup",
     "test:api": "bun --filter api test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

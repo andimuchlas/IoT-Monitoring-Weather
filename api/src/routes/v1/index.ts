@@ -4,5 +4,6 @@ import devices from "./devices.route";
 import sensorTypes from "./sensor-types.route";
 import sensors from "./sensors.route";
 import ingest from "./ingest.route";
+import readings from "./readings.route";
 
-export const v1Routes = [health, auth, devices, sensorTypes, sensors, ingest];
+export const v1Routes = [health, auth, devices, sensorTypes, sensors, ingest, readings];

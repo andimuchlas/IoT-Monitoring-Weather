@@ -1,16 +1,34 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import {
   applyCalibration,
   evaluateQualityFlag,
   calculateRainfallMm,
   calculateVectorMeanWindDirection,
 } from "../lib/calibration";
-import { IdempotencyManager, deduplicateReadings } from "../lib/idempotency";
 import {
   createSensorTypeSchema,
   createSensorSchema,
   createCalibrationSchema,
 } from "../services/sensors/dto";
+
+const fakeStore = new Map<string, string>();
+const mockRedis = {
+  get: mock(async (key: string) => fakeStore.get(key) ?? null),
+  setex: mock(async (key: string, _ttl: number, value: string) => {
+    fakeStore.set(key, value);
+    return "OK";
+  }),
+  del: mock(async (key: string) => {
+    fakeStore.delete(key);
+    return 1;
+  }),
+  exists: mock(async (key: string) => (fakeStore.has(key) ? 1 : 0)),
+};
+
+mock.module("@/configs/redis", () => ({ default: mockRedis }));
+mock.module("@/lib/redis", () => ({ default: mockRedis }));
+
+const { IdempotencyManager, deduplicateReadings } = await import("../lib/idempotency");
 
 describe("Calibration Utilities", () => {
   it("applyCalibration should correctly compute linear transformation y = m*x + c", () => {
@@ -115,16 +133,16 @@ describe("Calibration Utilities", () => {
 });
 
 describe("Idempotency & Deduplication", () => {
-  it("IdempotencyManager should cache responses and detect duplicate retries", () => {
-    const manager = new IdempotencyManager(5, 100);
+  it("IdempotencyManager should cache responses and detect duplicate retries", async () => {
+    const manager = new IdempotencyManager();
     const key = manager.generateKey("WS-GRT-001", 1757308800, 10432);
 
-    expect(manager.has(key)).toBe(false);
+    expect(await manager.has(key)).toBe(false);
 
-    manager.set(key, 201, { success: true, message: "Telemetry accepted" });
+    await manager.set(key, 201, { success: true, message: "Telemetry accepted" });
 
-    expect(manager.has(key)).toBe(true);
-    const cached = manager.get(key);
+    expect(await manager.has(key)).toBe(true);
+    const cached = await manager.get(key);
     expect(cached?.statusCode).toBe(201);
     expect(cached?.body.success).toBe(true);
   });

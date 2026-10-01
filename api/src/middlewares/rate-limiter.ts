@@ -1,11 +1,19 @@
-import { rateLimiter } from "hono-rate-limiter";
+import { rateLimiter, RedisStore } from "hono-rate-limiter";
 import type { Context } from "hono";
 import type { AppBindings } from "../app";
+import redis from "../lib/redis";
+import { env } from "../configs/env";
+
+const store =
+  env.NODE_ENV !== "development"
+    ? (new RedisStore({ client: redis as any, prefix: "rate:" }) as any)
+    : undefined;
 
 export const apiRateLimiter = rateLimiter<AppBindings>({
   windowMs: 60 * 1000,
   limit: 120,
   standardHeaders: "draft-6",
+  store,
   keyGenerator: (c: Context<AppBindings>) => {
     const deviceId = c.req.header("X-Device-Id");
     if (deviceId) {

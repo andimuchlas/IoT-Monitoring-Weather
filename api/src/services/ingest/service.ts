@@ -16,6 +16,7 @@ import {
   calculateVectorMeanWindDirection,
 } from "../../lib/calibration";
 import { idempotencyManager } from "../../lib/idempotency";
+import { invalidate } from "../../lib/cache";
 import type { SingleTelemetryDto, BatchTelemetryDto, HeartbeatDto } from "./dto";
 
 export async function verifyDeviceApiKey(rawKey: string, storedHash: string): Promise<boolean> {
@@ -64,8 +65,8 @@ export class IngestService extends BaseService {
       payload.seq ?? 0
     );
 
-    if (idempotencyManager.has(idempotencyKey)) {
-      const cached = idempotencyManager.get(idempotencyKey);
+    if (await idempotencyManager.has(idempotencyKey)) {
+      const cached = await idempotencyManager.get(idempotencyKey);
       if (cached) {
         return {
           status: cached.statusCode,
@@ -197,11 +198,6 @@ export class IngestService extends BaseService {
         .onConflictDoNothing({
           target: [sensorReadings.deviceId, sensorReadings.sensorId, sensorReadings.time],
         });
-
-      const hourlyBucket = new Date(Math.floor(time.getTime() / (3600 * 1000)) * (3600 * 1000));
-      for (const r of readingsToInsert) {
-        await this.rollupHourlyAggregate(device.id, r.sensorId, r.sensorTypeId, hourlyBucket);
-      }
     }
 
     await db
@@ -228,7 +224,8 @@ export class IngestService extends BaseService {
       },
     };
 
-    idempotencyManager.set(idempotencyKey, 201, responseData);
+    await idempotencyManager.set(idempotencyKey, 201, responseData);
+    await invalidate(`cache:latest:${device.id}`);
 
     return {
       status: 201,
@@ -254,6 +251,51 @@ export class IngestService extends BaseService {
 
     let latestTime: Date = new Date(0);
 
+    const activeInstallations = await db.query.sensorInstallations.findMany({
+      where: and(
+        eq(sensorInstallations.deviceId, device.id),
+        or(
+          isNull(sensorInstallations.uninstalledAt),
+          gt(sensorInstallations.uninstalledAt, new Date())
+        )
+      ),
+      with: {
+        sensor: {
+          with: {
+            type: true,
+            calibrations: {
+              orderBy: [desc(sensorCalibrations.effectiveFrom)],
+              limit: 1,
+            },
+          },
+        },
+      },
+    });
+
+    const sensorMap = new Map<
+      string,
+      {
+        sensorId: string;
+        sensorTypeId: string;
+        minVal: number;
+        maxVal: number;
+        calibration: { scale: number; offset: number } | null;
+      }
+    >();
+
+    for (const inst of activeInstallations) {
+      const s = inst.sensor;
+      if (!s || !s.type) continue;
+      const cal = s.calibrations[0];
+      sensorMap.set(s.sensorTypeId, {
+        sensorId: s.id,
+        sensorTypeId: s.sensorTypeId,
+        minVal: s.type.minVal,
+        maxVal: s.type.maxVal,
+        calibration: cal ? { scale: cal.scale, offset: cal.offset } : null,
+      });
+    }
+
     for (const item of payload.batch) {
       const itemTime = new Date(item.ts * 1000);
       if (itemTime > latestTime) {
@@ -266,7 +308,7 @@ export class IngestService extends BaseService {
         item.seq ?? 0
       );
 
-      if (idempotencyManager.has(idempotencyKey)) {
+      if (await idempotencyManager.has(idempotencyKey)) {
         duplicateCount++;
         results.push({
           seq: item.seq,
@@ -275,53 +317,6 @@ export class IngestService extends BaseService {
           message: "Duplicate payload detected in cache window",
         });
         continue;
-      }
-
-      const activeInstallations = await db.query.sensorInstallations.findMany({
-        where: and(
-          eq(sensorInstallations.deviceId, device.id),
-          lte(sensorInstallations.installedAt, itemTime),
-          or(
-            isNull(sensorInstallations.uninstalledAt),
-            gt(sensorInstallations.uninstalledAt, itemTime)
-          )
-        ),
-        with: {
-          sensor: {
-            with: {
-              type: true,
-              calibrations: {
-                where: lte(sensorCalibrations.effectiveFrom, itemTime),
-                orderBy: [desc(sensorCalibrations.effectiveFrom)],
-                limit: 1,
-              },
-            },
-          },
-        },
-      });
-
-      const sensorMap = new Map<
-        string,
-        {
-          sensorId: string;
-          sensorTypeId: string;
-          minVal: number;
-          maxVal: number;
-          calibration: { scale: number; offset: number } | null;
-        }
-      >();
-
-      for (const inst of activeInstallations) {
-        const s = inst.sensor;
-        if (!s || !s.type) continue;
-        const cal = s.calibrations[0];
-        sensorMap.set(s.sensorTypeId, {
-          sensorId: s.id,
-          sensorTypeId: s.sensorTypeId,
-          minVal: s.type.minVal,
-          maxVal: s.type.maxVal,
-          calibration: cal ? { scale: cal.scale, offset: cal.offset } : null,
-        });
       }
 
       const readingsToInsert: (typeof sensorReadings.$inferInsert)[] = [];
@@ -400,14 +395,8 @@ export class IngestService extends BaseService {
           continue;
         }
 
-        const hourlyBucket = new Date(
-          Math.floor(itemTime.getTime() / (3600 * 1000)) * (3600 * 1000)
-        );
-        for (const r of readingsToInsert) {
-          await this.rollupHourlyAggregate(device.id, r.sensorId, r.sensorTypeId, hourlyBucket);
-        }
-
-        idempotencyManager.set(idempotencyKey, 201, { accepted: true });
+        await idempotencyManager.set(idempotencyKey, 201, { accepted: true });
+        await invalidate(`cache:latest:${device.id}`);
         acceptedCount++;
         results.push({
           seq: item.seq,

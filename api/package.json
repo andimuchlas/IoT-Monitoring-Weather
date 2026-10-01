@@ -11,6 +11,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "bun src/db/seeder.ts",
     "db:studio": "drizzle-kit studio",
+    "worker:rollup": "bun src/workers/rollup/index.ts",
     "test": "bun test"
   },
   "devDependencies": {
@@ -23,12 +24,14 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
+    "bullmq": "^6.3.11",
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.4",
     "drizzle-orm": "^0.45.3",
     "drizzle-zod": "^0.8.3",
     "hono": "^4.13.11",
     "hono-rate-limiter": "^0.5.4",
+    "ioredis": "^6.0.0",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"
   }

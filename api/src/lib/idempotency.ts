@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import redis from "@/lib/redis";
 
 export interface CachedResponse {
   statusCode: number;
@@ -6,83 +7,37 @@ export interface CachedResponse {
   timestamp: number;
 }
 
+const TTL_SECONDS = 15 * 60;
+
 export class IdempotencyManager {
-  private cache: Map<string, CachedResponse>;
-  private readonly ttlMs: number;
-  private readonly maxSize: number;
-
-  constructor(ttlMinutes = 15, maxSize = 10000) {
-    this.cache = new Map();
-    this.ttlMs = ttlMinutes * 60 * 1000;
-    this.maxSize = maxSize;
-
-    setInterval(() => this.cleanup(), 5 * 60 * 1000);
-  }
-
-  public generateKey(deviceId: string, ts: number, seq?: number | null): string {
+  generateKey(deviceId: string, ts: number, seq?: number | null): string {
     const seqStr = seq !== undefined && seq !== null ? seq.toString() : "noseq";
-    return `telemetry:${deviceId}:${ts}:${seqStr}`;
+    return `idempotency:${deviceId}:${ts}:${seqStr}`;
   }
 
-  public hashPayload(payload: any): string {
+  hashPayload(payload: any): string {
     const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
     return crypto.createHash("sha256").update(raw).digest("hex");
   }
 
-  public has(key: string): boolean {
-    const entry = this.cache.get(key);
-    if (!entry) return false;
-
-    if (Date.now() - entry.timestamp > this.ttlMs) {
-      this.cache.delete(key);
-      return false;
-    }
-
-    return true;
+  async has(key: string): Promise<boolean> {
+    const result = await redis.exists(key);
+    return result === 1;
   }
 
-  public get(key: string): CachedResponse | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
-
-    if (Date.now() - entry.timestamp > this.ttlMs) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    return entry;
+  async get(key: string): Promise<CachedResponse | null> {
+    const raw = await redis.get(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as CachedResponse;
   }
 
-  public set(key: string, statusCode: number, body: any): void {
-    if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey) {
-        this.cache.delete(oldestKey);
-      }
-    }
-
-    this.cache.set(key, {
-      statusCode,
-      body,
-      timestamp: Date.now(),
-    });
-  }
-
-  public cleanup(): void {
-    const now = Date.now();
-    for (const [key, entry] of this.cache.entries()) {
-      if (now - entry.timestamp > this.ttlMs) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  public clear(): void {
-    this.cache.clear();
+  async set(key: string, statusCode: number, body: any): Promise<void> {
+    const payload: CachedResponse = { statusCode, body, timestamp: Date.now() };
+    await redis.setex(key, TTL_SECONDS, JSON.stringify(payload));
   }
 }
 
-export const idempotencyManager = new IdempotencyManager(15, 20000);
+export const idempotencyManager = new IdempotencyManager();
 
 export function deduplicateReadings<
   T extends { deviceId: string; sensorId: string; time: Date | string },

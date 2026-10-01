@@ -1,13 +1,31 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import {
   singleTelemetrySchema,
   batchTelemetrySchema,
   heartbeatSchema,
 } from "../services/ingest/dto";
-import { verifyDeviceApiKey, IngestService } from "../services/ingest/service";
-import { idempotencyManager } from "../lib/idempotency";
 import { hashApiKey } from "../services/devices/service";
-import { db } from "../db";
+
+const fakeStore = new Map<string, string>();
+const mockRedis = {
+  get: mock(async (key: string) => fakeStore.get(key) ?? null),
+  setex: mock(async (key: string, _ttl: number, value: string) => {
+    fakeStore.set(key, value);
+    return "OK";
+  }),
+  del: mock(async (key: string) => {
+    fakeStore.delete(key);
+    return 1;
+  }),
+  exists: mock(async (key: string) => (fakeStore.has(key) ? 1 : 0)),
+};
+
+mock.module("@/configs/redis", () => ({ default: mockRedis }));
+mock.module("@/lib/redis", () => ({ default: mockRedis }));
+
+const { verifyDeviceApiKey, IngestService } = await import("../services/ingest/service");
+const { idempotencyManager } = await import("../lib/idempotency");
+const { db } = await import("../db");
 
 describe("Ingest DTO Schemas", () => {
   it("singleTelemetrySchema validates valid single payload from spec", () => {
@@ -227,10 +245,10 @@ describe("Ingest Service Idempotency & Processing", () => {
       },
     };
 
-    idempotencyManager.set(key, 201, mockResponse);
+    await idempotencyManager.set(key, 201, mockResponse);
 
-    expect(idempotencyManager.has(key)).toBe(true);
-    const cached = idempotencyManager.get(key);
+    expect(await idempotencyManager.has(key)).toBe(true);
+    const cached = await idempotencyManager.get(key);
     expect(cached?.statusCode).toBe(201);
     expect(cached?.body.data.processedCount).toBe(2);
   });
@@ -406,10 +424,10 @@ describe("Technical Evaluation Section F.3 Cases", () => {
       },
     };
 
-    idempotencyManager.set(key, 201, initialResponse);
+    await idempotencyManager.set(key, 201, initialResponse);
 
-    const retry1 = idempotencyManager.get(key);
-    const retry2 = idempotencyManager.get(key);
+    const retry1 = await idempotencyManager.get(key);
+    const retry2 = await idempotencyManager.get(key);
 
     expect(retry1?.statusCode).toBe(201);
     expect(retry1?.body.data.processedCount).toBe(7);
