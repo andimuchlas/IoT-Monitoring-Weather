@@ -10,6 +10,7 @@ export const timeseriesQuerySchema = z.object({
   to: z.string().optional(),
   interval: z.enum(["raw", "1m", "5m", "1h", "1d"]).default("raw"),
   agg: z.enum(["avg", "min", "max", "sum"]).optional(),
+  order: z.enum(["asc", "desc"]).default("asc"),
   limit: z.coerce.number().int().min(1).max(5000).default(500),
   page: z.coerce.number().int().min(1).default(1),
 });

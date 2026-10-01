@@ -8,7 +8,7 @@ import { DeviceCard } from "../components/devices/device-card";
 import { LoadingState } from "../components/common/loading-state";
 import { EmptyState } from "../components/common/empty-state";
 import { ErrorState } from "../components/common/error-state";
-import { fetchApi, MOCK_DEVICES } from "../lib/api";
+import { fetchApi } from "../lib/api";
 import { checkIsOffline } from "../lib/date";
 import type { DeviceOverview } from "../types/device";
 
@@ -19,18 +19,41 @@ export default function DashboardOverviewPage() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ONLINE" | "OFFLINE">("ALL");
 
-  // Fetch data dari endpoint /api/v1/dashboard/overview (dengan graceful fallback ke MOCK)
+  // Fetch data dari endpoint /api/v1/dashboard/overview
   const loadDashboardData = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
 
       try {
-        const data = await fetchApi<DeviceOverview[]>("/api/v1/dashboard/overview");
-        setDevices(data);
-      } catch (apiErr) {
-        console.warn("Backend endpoint /overview not available, using mock dataset:", apiErr);
-        setDevices(MOCK_DEVICES);
+        const res = await fetchApi<any>("/api/v1/dashboard/overview");
+        const list = Array.isArray(res) ? res : (res?.stations ?? []);
+        if (Array.isArray(list) && list.length > 0) {
+          const mapped: DeviceOverview[] = list.map((st: any) => ({
+            id: st.id,
+            name: st.name,
+            locationName: st.locationName || st.location || "Lokasi Sensor",
+            status: st.status || "active",
+            firmwareVersion: st.firmwareVersion || "1.4.2",
+            batteryV: st.batteryV ?? null,
+            rssi: st.rssi ?? null,
+            lastSeenAt: st.lastSeenAt,
+            isOffline: st.isOffline ?? false,
+            latestReadings: st.latestReadings || {
+              temp_air: st.metrics?.temperature,
+              humidity: st.metrics?.humidity,
+              wind_speed: st.metrics?.windSpeed,
+              pressure: st.metrics?.pressure,
+            },
+          }));
+          setDevices(mapped);
+        } else {
+          setDevices([]);
+        }
+      } catch (apiErr: any) {
+        console.warn("Backend endpoint /overview error:", apiErr);
+        setError(apiErr?.message || "Tidak dapat terhubung ke server backend.");
+        setDevices([]);
       }
     } catch (err: any) {
       setError(err?.message || "Gagal memuat data dashboard.");

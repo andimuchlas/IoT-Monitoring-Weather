@@ -130,6 +130,31 @@ export class ReadingsService extends BaseService {
         limit: query.limit,
       });
 
+      // If querying all sensors for a device without specific sensorTypeId, pivot to wide format for charts!
+      if (!targetSensorTypeId && targetDeviceId) {
+        const bucketMap = new Map<string, any>();
+        for (const r of rows) {
+          const t = r.bucket.toISOString();
+          let point = bucketMap.get(t);
+          if (!point) {
+            point = { time: t, deviceId: r.deviceId };
+            bucketMap.set(t, point);
+          }
+          point[r.sensorTypeId] = r.avgValue;
+          if (r.sensorTypeId === "rain_counter") {
+            point.rainfall_mm = Math.round((r.sumValue ?? 0) * 0.2 * 100) / 100;
+          }
+        }
+
+        const wideRows = Array.from(bucketMap.values());
+        return this.success({
+          interval: effectiveInterval,
+          forcedDownsampling: effectiveInterval !== query.interval,
+          count: wideRows.length,
+          data: wideRows,
+        });
+      }
+
       return this.success({
         interval: effectiveInterval,
         forcedDownsampling: effectiveInterval !== query.interval,
@@ -165,13 +190,35 @@ export class ReadingsService extends BaseService {
     }
 
     const offset = (query.page - 1) * query.limit;
+    const sortOrder = query.order === "desc" ? desc(sensorReadings.time) : asc(sensorReadings.time);
 
     const rows = await db.query.sensorReadings.findMany({
       where: and(...conditions),
-      orderBy: [asc(sensorReadings.time)],
+      orderBy: [sortOrder],
       limit: query.limit,
       offset,
     });
+
+    // If querying all sensors for a device without specific sensorTypeId, pivot raw readings to wide format!
+    if (!targetSensorTypeId && targetDeviceId) {
+      const timeMap = new Map<string, any>();
+      for (const r of rows) {
+        const t = r.time.toISOString();
+        let point = timeMap.get(t);
+        if (!point) {
+          point = { time: t, deviceId: r.deviceId, value: r.value };
+          timeMap.set(t, point);
+        }
+        point.value = r.value;
+        point[r.sensorTypeId] = r.value;
+      }
+      const wideRows = Array.from(timeMap.values());
+      return this.success({
+        interval: effectiveInterval,
+        count: wideRows.length,
+        data: wideRows,
+      });
+    }
 
     return this.success({
       interval: effectiveInterval,
@@ -181,6 +228,7 @@ export class ReadingsService extends BaseService {
       data: rows.map((r) => ({
         id: r.id,
         time: r.time.toISOString(),
+        serverTime: r.serverTime ? r.serverTime.toISOString() : r.time.toISOString(),
         deviceId: r.deviceId,
         sensorTypeId: r.sensorTypeId,
         value: r.value,
@@ -294,19 +342,50 @@ export class ReadingsService extends BaseService {
         orderBy: [desc(sensorReadings.time)],
       });
 
+      const latestPressure = await db.query.sensorReadings.findFirst({
+        where: and(eq(sensorReadings.deviceId, d.id), eq(sensorReadings.sensorTypeId, "pressure")),
+        orderBy: [desc(sensorReadings.time)],
+      });
+
+      const latestRain = await db.query.sensorReadings.findFirst({
+        where: and(
+          eq(sensorReadings.deviceId, d.id),
+          eq(sensorReadings.sensorTypeId, "rain_counter")
+        ),
+        orderBy: [desc(sensorReadings.time)],
+      });
+
+      const latestSolar = await db.query.sensorReadings.findFirst({
+        where: and(eq(sensorReadings.deviceId, d.id), eq(sensorReadings.sensorTypeId, "solar_rad")),
+        orderBy: [desc(sensorReadings.time)],
+      });
+
+      const locationName = d.location?.name ?? "Lokasi Tidak Diketahui";
+
       stationCards.push({
         id: d.id,
         name: d.name,
         status: d.status,
+        firmwareVersion: d.firmwareVersion,
         isOffline: isDeviceOffline(d.lastSeenAt),
         lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
         batteryV: d.batteryV,
         rssi: d.rssi,
-        location: d.location?.name ?? null,
+        location: locationName,
+        locationName,
         metrics: {
           temperature: latestTemp?.value ?? null,
           humidity: latestHumidity?.value ?? null,
           windSpeed: latestWind?.value ?? null,
+          pressure: latestPressure?.value ?? null,
+        },
+        latestReadings: {
+          temp_air: latestTemp?.value,
+          humidity: latestHumidity?.value,
+          wind_speed: latestWind?.value,
+          pressure: latestPressure?.value,
+          rain_counter: latestRain?.value,
+          solar_rad: latestSolar?.value,
         },
       });
     }

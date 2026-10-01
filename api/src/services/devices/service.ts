@@ -10,6 +10,7 @@ import {
   sensors,
   sensorTypes,
   sensorCalibrations,
+  sensorReadings,
 } from "../../db/schema";
 import type { CreateDeviceDto, UpdateDeviceDto, DeviceQueryDto } from "./dto";
 
@@ -126,9 +127,29 @@ export class DeviceService extends BaseService {
     const isOffline = isDeviceOffline(device.lastSeenAt);
     const { apiKeyHash, ...safeDevice } = device;
 
+    const latestReadings: Record<string, number> = {};
+    for (const inst of installedSensors) {
+      if (!inst.sensorTypeId) continue;
+      const latest = await db.query.sensorReadings.findFirst({
+        where: and(
+          eq(sensorReadings.deviceId, id),
+          eq(sensorReadings.sensorTypeId, inst.sensorTypeId)
+        ),
+        orderBy: [desc(sensorReadings.time)],
+      });
+      if (latest && typeof latest.value === "number") {
+        latestReadings[inst.sensorTypeId] = latest.value;
+      }
+    }
+
     return this.success({
       ...safeDevice,
+      locationName: device.location?.name ?? "Lokasi Tidak Diketahui",
+      latitude: device.location?.latitude ?? -6.9,
+      longitude: device.location?.longitude ?? 107.6,
+      altitude: device.location?.altitude ?? 500,
       isOffline,
+      latestReadings,
       installedSensors,
     });
   }

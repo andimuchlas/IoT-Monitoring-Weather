@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,20 +24,67 @@ import {
   Layers,
   MapPin,
   X,
+  RefreshCw,
 } from "lucide-react";
-import { MOCK_DEVICES, MOCK_DEVICE_DETAILS } from "../../lib/api";
+import { fetchApi, getDeviceDetail } from "../../lib/api";
 import { formatWIB, formatRelativeTime, checkIsOffline } from "../../lib/date";
 import type { DeviceOverview, DeviceStatus } from "../../types/device";
 import type { DeviceDetail, SensorItem } from "../../types/sensor";
 
 export default function DevicesManagementPage() {
-  const [devicesList, setDevicesList] = useState<DeviceDetail[]>(() => {
-    return Object.values(MOCK_DEVICE_DETAILS);
-  });
+  const [devicesList, setDevicesList] = useState<DeviceDetail[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"STATIONS" | "SENSORS">("STATIONS");
+
+  // Load data stasiun live dari API
+  const loadDevices = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetchApi<any>("/api/v1/dashboard/overview");
+      const list = Array.isArray(res) ? res : (res?.stations ?? []);
+      if (Array.isArray(list) && list.length > 0) {
+        const details = await Promise.all(
+          list.map(async (st: any) => {
+            try {
+              return await getDeviceDetail(st.id);
+            } catch {
+              return {
+                id: st.id,
+                name: st.name,
+                locationName: st.locationName || st.location || "Lokasi Sensor",
+                status: st.status || "active",
+                firmwareVersion: st.firmwareVersion || "1.4.2",
+                batteryV: st.batteryV ?? 3.9,
+                rssi: st.rssi ?? -70,
+                lastSeenAt: st.lastSeenAt || new Date().toISOString(),
+                isOffline: st.isOffline ?? false,
+                latitude: -6.9,
+                longitude: 107.6,
+                altitude: 500,
+                latestReadings: st.latestReadings || {},
+                installedSensors: [],
+              };
+            }
+          })
+        );
+        setDevicesList(details);
+      } else {
+        setDevicesList([]);
+      }
+    } catch (err) {
+      console.warn("Failed to load devices from backend:", err);
+      setDevicesList([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDevices();
+  }, [loadDevices]);
 
   // State untuk modal tambah stasiun
   const [showAddStationModal, setShowAddStationModal] = useState(false);

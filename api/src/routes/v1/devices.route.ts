@@ -6,7 +6,7 @@ import {
   deviceQuerySchema,
 } from "../../services/devices/dto";
 import { deviceService } from "../../services/devices/service";
-import { requireAuth, requireAdmin } from "../../middlewares/auth";
+import { requireAuth, requireAdmin, optionalAuth } from "../../middlewares/auth";
 import { AppError } from "../../services/base.service";
 import type { AppBindings } from "../../app";
 
@@ -33,7 +33,7 @@ devices.get(
   }
 );
 
-devices.get("/devices/:id", requireAuth, async (c) => {
+devices.get("/devices/:id", optionalAuth, async (c) => {
   const id = c.req.param("id");
   const result = await deviceService.getById(id);
   return c.json(result);
