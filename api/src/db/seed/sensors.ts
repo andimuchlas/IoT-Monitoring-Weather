@@ -32,7 +32,6 @@ export async function seedSensors() {
       }
 
       if (sensor) {
-        // Cek instalasi aktif
         const activeInstall = await db.query.sensorInstallations.findFirst({
           where: eq(sensorInstallations.sensorId, sensor.id),
         });
@@ -45,7 +44,6 @@ export async function seedSensors() {
           });
         }
 
-        // Cek kalibrasi default
         const activeCalib = await db.query.sensorCalibrations.findFirst({
           where: eq(sensorCalibrations.sensorId, sensor.id),
         });

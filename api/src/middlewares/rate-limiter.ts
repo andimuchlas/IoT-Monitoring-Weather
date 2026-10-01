@@ -3,8 +3,8 @@ import type { Context } from "hono";
 import type { AppBindings } from "../app";
 
 export const apiRateLimiter = rateLimiter<AppBindings>({
-  windowMs: 60 * 1000, // 1 menit
-  limit: 120, // Maksimal 120 request per menit
+  windowMs: 60 * 1000,
+  limit: 120,
   standardHeaders: "draft-6",
   keyGenerator: (c: Context<AppBindings>) => {
     const deviceId = c.req.header("X-Device-Id");

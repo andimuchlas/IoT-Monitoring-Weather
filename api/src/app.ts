@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
+import { httpStructuredLogger, logger } from "./lib/logger";
 import { poweredBy } from "hono/powered-by";
 import { env, validateEnv } from "./configs/env";
 import { requestId } from "./middlewares/request-id";
@@ -21,7 +21,7 @@ validateEnv();
 const app = new Hono<AppBindings>();
 
 app.use("*", requestId());
-app.use("*", logger());
+app.use("*", httpStructuredLogger());
 app.use("*", poweredBy({ serverName: "Luwes IoT Weather Station API" }));
 
 const corsConfig = {
@@ -41,32 +41,47 @@ const corsConfig = {
 
 app.use("*", cors(corsConfig[env.NODE_ENV as keyof typeof corsConfig] || corsConfig.development));
 
-// Global Error Handler
 app.onError((err, c) => {
+  const reqId = c.get("requestId");
+
   if (err instanceof AppError) {
+    logger.warn(`Application error [${err.code}]: ${err.message}`, {
+      requestId: reqId,
+      path: c.req.path,
+      method: c.req.method,
+      statusCode: err.statusCode,
+      details: err.details,
+    });
+
     return c.json(
       {
         success: false,
         message: err.message,
         code: err.code,
+        requestId: reqId,
         ...(err.details ? { details: err.details } : {}),
       },
       err.statusCode as any
     );
   }
 
-  console.error("[Unhandled Error]:", err);
+  logger.error("Unhandled internal server error", err, {
+    requestId: reqId,
+    path: c.req.path,
+    method: c.req.method,
+  });
+
   return c.json(
     {
       success: false,
       message: "An internal server error occurred",
       code: "INTERNAL_SERVER_ERROR",
+      requestId: reqId,
     },
     500
   );
 });
 
-// Mount all v1 routes under /api/v1
 v1Routes.forEach((route) => {
   app.basePath("/api").route("/v1", route);
 });

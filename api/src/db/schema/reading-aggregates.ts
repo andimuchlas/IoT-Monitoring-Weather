@@ -16,8 +16,8 @@ export const readingAggregates = pgTable(
   "reading_aggregates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    bucket: timestamp("bucket", { withTimezone: true }).notNull(), // bucket start time
-    interval: varchar("interval", { length: 10 }).notNull(), // '1m', '1h', '1d'
+    bucket: timestamp("bucket", { withTimezone: true }).notNull(),
+    interval: varchar("interval", { length: 10 }).notNull(),
     deviceId: varchar("device_id", { length: 50 })
       .references(() => devices.id, { onDelete: "cascade" })
       .notNull(),
@@ -30,7 +30,7 @@ export const readingAggregates = pgTable(
     avgValue: doublePrecision("avg_value"),
     minValue: doublePrecision("min_value"),
     maxValue: doublePrecision("max_value"),
-    sumValue: doublePrecision("sum_value"), // especially for rain mm
+    sumValue: doublePrecision("sum_value"),
     readingCount: integer("reading_count").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

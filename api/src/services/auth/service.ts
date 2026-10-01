@@ -22,7 +22,7 @@ export class AuthService extends BaseService {
       this.unauthorized("INVALID_CREDENTIALS", "Invalid email or password");
     }
 
-    const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7; // 7 days
+    const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
     const payload: AuthUserPayload & { exp: number } = {
       id: user.id,
       name: user.name,

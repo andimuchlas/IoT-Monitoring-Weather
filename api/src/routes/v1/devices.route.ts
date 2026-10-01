@@ -22,7 +22,6 @@ const validationErrorHook = (result: any) => {
   }
 };
 
-// GET /devices - Daftar stasiun cuaca dengan filter status dan pencarian
 devices.get(
   "/devices",
   requireAuth,
@@ -34,14 +33,12 @@ devices.get(
   }
 );
 
-// GET /devices/:id - Detail stasiun cuaca beserta sensor terpasang & kalibrasi
 devices.get("/devices/:id", requireAuth, async (c) => {
   const id = c.req.param("id");
   const result = await deviceService.getById(id);
   return c.json(result);
 });
 
-// POST /devices - Pendaftaran stasiun cuaca baru (Admin only)
 devices.post(
   "/devices",
   requireAdmin,
@@ -54,7 +51,6 @@ devices.post(
   }
 );
 
-// PATCH /devices/:id - Pembaruan metadata atau status stasiun cuaca (Admin only)
 devices.patch(
   "/devices/:id",
   requireAdmin,
@@ -68,7 +64,13 @@ devices.patch(
   }
 );
 
-// POST /devices/:id/rotate-key - Rotasi kredensial API Key stasiun cuaca (Admin only)
+devices.post("/devices/:id/credentials/rotate", requireAdmin, async (c) => {
+  const id = c.req.param("id");
+  const user = c.get("user");
+  const result = await deviceService.rotateApiKey(id, user?.id);
+  return c.json(result);
+});
+
 devices.post("/devices/:id/rotate-key", requireAdmin, async (c) => {
   const id = c.req.param("id");
   const user = c.get("user");
@@ -76,7 +78,13 @@ devices.post("/devices/:id/rotate-key", requireAdmin, async (c) => {
   return c.json(result);
 });
 
-// DELETE /devices/:id - Decommission / Soft-delete stasiun cuaca (Admin only)
+devices.get("/devices/:id/health", requireAuth, async (c) => {
+  const id = c.req.param("id");
+  const threshold = c.req.query("threshold") ? parseInt(c.req.query("threshold")!, 10) : 15;
+  const result = await deviceService.getHealth(id, threshold);
+  return c.json(result);
+});
+
 devices.delete("/devices/:id", requireAdmin, async (c) => {
   const id = c.req.param("id");
   const user = c.get("user");

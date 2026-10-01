@@ -26,7 +26,7 @@ export const sensorReadings = pgTable(
   "sensor_readings",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    time: timestamp("time", { withTimezone: true }).notNull(), // device_time UTC
+    time: timestamp("time", { withTimezone: true }).notNull(),
     deviceId: varchar("device_id", { length: 50 })
       .references(() => devices.id, { onDelete: "cascade" })
       .notNull(),
@@ -37,15 +37,13 @@ export const sensorReadings = pgTable(
       .references(() => sensorTypes.id)
       .notNull(),
     rawValue: doublePrecision("raw_value").notNull(),
-    value: doublePrecision("value").notNull(), // calibrated value or converted rain mm
+    value: doublePrecision("value").notNull(),
     qualityFlag: qualityFlagEnum("quality_flag").default("good").notNull(),
     serverTime: timestamp("server_time", { withTimezone: true }).defaultNow().notNull(),
     seq: integer("seq"),
   },
   (table) => [
-    // Idempotency: prevents duplicate insertion on retry
     uniqueIndex("sensor_readings_idempotency_idx").on(table.deviceId, table.sensorId, table.time),
-    // Performance indexes for time-series queries
     index("sensor_readings_sensor_time_idx").on(table.sensorId, table.time.desc()),
     index("sensor_readings_device_time_idx").on(table.deviceId, table.time.desc()),
     index("sensor_readings_device_type_time_idx").on(

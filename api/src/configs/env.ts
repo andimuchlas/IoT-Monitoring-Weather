@@ -5,7 +5,6 @@ export const env = {
   DATABASE_URL: process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/iot_db",
   PORT: process.env.PORT || "3001",
   ORIGIN: process.env.ORIGIN ? parseOrigin(process.env.ORIGIN) : undefined,
-  // Admin JWT
   JWT_SECRET: process.env.JWT_SECRET || "iot-weather-station-secret-jwt-key",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
 };

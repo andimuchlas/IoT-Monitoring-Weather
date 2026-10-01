@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { generateApiKey, hashApiKey, isDeviceOffline } from "./service";
-import { createDeviceSchema, updateDeviceSchema, deviceQuerySchema } from "./dto";
+import { generateApiKey, hashApiKey, isDeviceOffline } from "../services/devices/service";
+import { createDeviceSchema, updateDeviceSchema, deviceQuerySchema } from "../services/devices/dto";
 
 describe("Device Utility Functions", () => {
   it("generateApiKey should generate valid prefixed key", () => {
@@ -9,7 +9,6 @@ describe("Device Utility Functions", () => {
 
     expect(key1.startsWith("ws_live_")).toBe(true);
     expect(key2.startsWith("ws_live_")).toBe(true);
-    // ws_live_ (8) + 24 bytes hex (48 chars) = 56 chars
     expect(key1.length).toBe(56);
     expect(key1).not.toBe(key2);
   });
@@ -27,24 +26,19 @@ describe("Device Utility Functions", () => {
   });
 
   it("isDeviceOffline should correctly classify device online/offline status", () => {
-    // Null/undefined lastSeenAt is considered offline
     expect(isDeviceOffline(null)).toBe(true);
 
     const now = Date.now();
 
-    // 5 minutes ago -> Online (default threshold 15 min)
     const fiveMinutesAgo = new Date(now - 5 * 60 * 1000);
     expect(isDeviceOffline(fiveMinutesAgo)).toBe(false);
 
-    // 20 minutes ago -> Offline
     const twentyMinutesAgo = new Date(now - 20 * 60 * 1000);
     expect(isDeviceOffline(twentyMinutesAgo)).toBe(true);
 
-    // String date handling
     expect(isDeviceOffline(fiveMinutesAgo.toISOString())).toBe(false);
     expect(isDeviceOffline(twentyMinutesAgo.toISOString())).toBe(true);
 
-    // Custom threshold
     expect(isDeviceOffline(fiveMinutesAgo, 3)).toBe(true);
     expect(isDeviceOffline(fiveMinutesAgo, 10)).toBe(false);
   });
@@ -97,7 +91,7 @@ describe("Device DTO Schemas", () => {
 
   it("createDeviceSchema rejects invalid device ID formats", () => {
     const invalidId = {
-      id: "WS BDG #001", // contains spaces and special chars
+      id: "WS BDG #001",
       name: "Invalid ID Station",
     };
 
@@ -149,9 +143,9 @@ describe("Device DTO Schemas", () => {
 });
 
 describe("Device Endpoints RBAC & Validation", async () => {
-  const { default: app } = await import("../../app");
+  const { default: app } = await import("../app");
   const { sign } = await import("hono/jwt");
-  const { JWT_SECRET } = await import("../auth/service");
+  const { JWT_SECRET } = await import("../services/auth/service");
 
   const viewerToken = await sign(
     {
@@ -174,7 +168,7 @@ describe("Device Endpoints RBAC & Validation", async () => {
   it("GET /api/v1/devices rejects unauthenticated requests with 401", async () => {
     const res = await app.request("/api/v1/devices");
     expect(res.status).toBe(401);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.code).toBe("UNAUTHORIZED");
   });
@@ -193,7 +187,7 @@ describe("Device Endpoints RBAC & Validation", async () => {
     });
 
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.code).toBe("FORBIDDEN");
   });
@@ -207,12 +201,12 @@ describe("Device Endpoints RBAC & Validation", async () => {
       },
       body: JSON.stringify({
         id: "INVALID ID SPACES",
-        name: "Ab", // too short (< 3 chars)
+        name: "Ab",
       }),
     });
 
     expect(res.status).toBe(422);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.code).toBe("VALIDATION_ERROR");
   });
@@ -226,7 +220,7 @@ describe("Device Endpoints RBAC & Validation", async () => {
     });
 
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.code).toBe("FORBIDDEN");
   });
@@ -240,7 +234,7 @@ describe("Device Endpoints RBAC & Validation", async () => {
     });
 
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.code).toBe("FORBIDDEN");
   });

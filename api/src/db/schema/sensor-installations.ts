@@ -13,7 +13,7 @@ export const sensorInstallations = pgTable(
       .references(() => sensors.id, { onDelete: "cascade" })
       .notNull(),
     installedAt: timestamp("installed_at", { withTimezone: true }).defaultNow().notNull(),
-    uninstalledAt: timestamp("uninstalled_at", { withTimezone: true }), // null = currently active on device
+    uninstalledAt: timestamp("uninstalled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [

@@ -14,7 +14,7 @@ export async function seedHistoricalReadings() {
   const allDevices = await db.select().from(devices);
   const now = Date.now();
   const oneHour = 60 * 60 * 1000;
-  const totalHours = 7 * 24; // 168 jam ke belakang
+  const totalHours = 7 * 24;
 
   const rawReadingsToInsert: (typeof sensorReadings.$inferInsert)[] = [];
   const aggregatesToInsert: (typeof readingAggregates.$inferInsert)[] = [];
@@ -24,13 +24,12 @@ export async function seedHistoricalReadings() {
       where: (s, { like }) => like(s.serialNumber, `SNS-${device.id}-%`),
     });
 
-    let cumulativeRainTips = 400; // Counter awal
+    let cumulativeRainTips = 400;
 
     for (let h = totalHours; h >= 0; h--) {
       const timestamp = new Date(now - h * oneHour);
       const hourOfDay = timestamp.getHours();
 
-      // Formula cuaca realistis diurnal cycle
       const tempSin = Math.sin(((hourOfDay - 8) * Math.PI) / 12);
       const temp = Number((24.0 + 6.0 * tempSin + (Math.random() * 0.8 - 0.4)).toFixed(2));
       const humidity = Number((80.0 - 25.0 * tempSin + (Math.random() * 2.0 - 1.0)).toFixed(2));
@@ -51,10 +50,9 @@ export async function seedHistoricalReadings() {
             )
           : 0.0;
 
-      // Simulasi hujan sesekali (misal sore hari)
       let hourlyRainMm = 0;
       if (hourOfDay >= 15 && hourOfDay <= 17 && h % 2 === 0) {
-        const tipsDelta = Math.floor(Math.random() * 15) + 5; // 5-20 tips
+        const tipsDelta = Math.floor(Math.random() * 15) + 5;
         cumulativeRainTips += tipsDelta;
         hourlyRainMm = Number((tipsDelta * 0.2).toFixed(2));
       }
@@ -86,7 +84,7 @@ export async function seedHistoricalReadings() {
             break;
           case "rain_counter":
             rawVal = cumulativeRainTips;
-            finalVal = hourlyRainMm; // mm curah hujan
+            finalVal = hourlyRainMm;
             break;
           case "solar_rad":
             rawVal = solarRad;
@@ -106,7 +104,6 @@ export async function seedHistoricalReadings() {
           seq: 1000 + (totalHours - h),
         });
 
-        // 1h pre-computed aggregate
         aggregatesToInsert.push({
           bucket: timestamp,
           interval: "1h",
@@ -123,7 +120,6 @@ export async function seedHistoricalReadings() {
     }
   }
 
-  // Chunk insert agar aman dan sangat cepat
   const chunkSize = 500;
   console.info(`  -> Inserting ${rawReadingsToInsert.length} raw readings in chunks...`);
   for (let i = 0; i < rawReadingsToInsert.length; i += chunkSize) {

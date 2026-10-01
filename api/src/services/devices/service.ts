@@ -30,9 +30,6 @@ export function isDeviceOffline(lastSeenAt: Date | string | null, thresholdMinut
 }
 
 export class DeviceService extends BaseService {
-  /**
-   * Mengambil daftar stasiun cuaca dengan filter pencarian dan status
-   */
   async list(query: DeviceQueryDto) {
     const conditions = [isNull(devices.deletedAt)];
 
@@ -57,7 +54,6 @@ export class DeviceService extends BaseService {
       };
     });
 
-    // Filter berdasarkan teks pencarian (ID, Nama, atau Nama Lokasi)
     if (query.search && query.search.trim() !== "") {
       const keyword = query.search.toLowerCase();
       results = results.filter((d) => {
@@ -68,7 +64,6 @@ export class DeviceService extends BaseService {
       });
     }
 
-    // Filter offline jika dispesifikasikan di query param
     if (query.isOffline !== undefined) {
       results = results.filter((d) => d.isOffline === query.isOffline);
     }
@@ -76,9 +71,6 @@ export class DeviceService extends BaseService {
     return this.success(results);
   }
 
-  /**
-   * Mengambil detail satu stasiun cuaca beserta lokasi dan sensor yang sedang aktif terpasang
-   */
   async getById(id: string) {
     const device = await db.query.devices.findFirst({
       where: and(eq(devices.id, id), isNull(devices.deletedAt)),
@@ -91,7 +83,6 @@ export class DeviceService extends BaseService {
       this.notFound("DEVICE_NOT_FOUND", `Stasiun cuaca dengan ID '${id}' tidak ditemukan`);
     }
 
-    // Ambil sensor yang sedang terpasang aktif pada stasiun ini (uninstalledAt IS NULL)
     const activeInstallations = await db.query.sensorInstallations.findMany({
       where: and(eq(sensorInstallations.deviceId, id), isNull(sensorInstallations.uninstalledAt)),
       with: {
@@ -104,7 +95,6 @@ export class DeviceService extends BaseService {
       orderBy: [desc(sensorInstallations.installedAt)],
     });
 
-    // Ambil formula kalibrasi aktif untuk setiap sensor terpasang
     const installedSensors = await Promise.all(
       activeInstallations.map(async (inst) => {
         const activeCalibration = await db.query.sensorCalibrations.findFirst({
@@ -143,11 +133,7 @@ export class DeviceService extends BaseService {
     });
   }
 
-  /**
-   * Mendaftarkan stasiun cuaca baru, generate API key, dan mencatat audit status
-   */
   async create(dto: CreateDeviceDto, userId?: string) {
-    // Periksa apakah ID stasiun sudah digunakan
     const existing = await db.query.devices.findFirst({
       where: eq(devices.id, dto.id),
     });
@@ -162,7 +148,6 @@ export class DeviceService extends BaseService {
     const result = await db.transaction(async (tx) => {
       let finalLocationId = dto.locationId || null;
 
-      // Buat lokasi baru jika disediakan inline
       if (dto.location) {
         const [newLocation] = await tx
           .insert(locations)
@@ -180,7 +165,6 @@ export class DeviceService extends BaseService {
         finalLocationId = newLocation.id;
       }
 
-      // Insert stasiun cuaca baru
       const [newDevice] = await tx
         .insert(devices)
         .values({
@@ -197,7 +181,6 @@ export class DeviceService extends BaseService {
         throw new Error("Gagal mendaftarkan stasiun cuaca");
       }
 
-      // Catat log riwayat status stasiun pertama kali
       await tx.insert(deviceStatusHistory).values({
         deviceId: newDevice.id,
         oldStatus: null,
@@ -213,13 +196,10 @@ export class DeviceService extends BaseService {
 
     return this.success({
       device: safeDevice,
-      apiKey: rawApiKey, // Plaintext API Key dikembalikan HANYA SEKALI untuk konfigurasi mikrokontroler
+      apiKey: rawApiKey,
     });
   }
 
-  /**
-   * Memperbarui metadata atau status stasiun cuaca
-   */
   async update(id: string, dto: UpdateDeviceDto, userId?: string) {
     const existing = await db.query.devices.findFirst({
       where: and(eq(devices.id, id), isNull(devices.deletedAt)),
@@ -251,7 +231,6 @@ export class DeviceService extends BaseService {
         finalLocationId = dto.locationId;
       }
 
-      // Catat riwayat jika ada perubahan status operasional
       if (dto.status && dto.status !== existing.status) {
         await tx.insert(deviceStatusHistory).values({
           deviceId: id,
@@ -285,9 +264,6 @@ export class DeviceService extends BaseService {
     return this.success(safeDevice);
   }
 
-  /**
-   * Rotasi kredensial API Key stasiun cuaca
-   */
   async rotateApiKey(id: string, userId?: string) {
     const existing = await db.query.devices.findFirst({
       where: and(eq(devices.id, id), isNull(devices.deletedAt)),
@@ -310,13 +286,10 @@ export class DeviceService extends BaseService {
 
     return this.success({
       deviceId: id,
-      apiKey: newRawKey, // Plaintext API Key baru dikembalikan hanya sekali
+      apiKey: newRawKey,
     });
   }
 
-  /**
-   * Soft-delete stasiun cuaca dan mencatat status decommissioned
-   */
   async delete(id: string, userId?: string, reason?: string) {
     const existing = await db.query.devices.findFirst({
       where: and(eq(devices.id, id), isNull(devices.deletedAt)),
@@ -327,7 +300,6 @@ export class DeviceService extends BaseService {
     }
 
     await db.transaction(async (tx) => {
-      // Catat riwayat decommission
       await tx.insert(deviceStatusHistory).values({
         deviceId: id,
         oldStatus: existing.status,
@@ -336,7 +308,6 @@ export class DeviceService extends BaseService {
         reason: reason || "Stasiun dinonaktifkan (soft delete)",
       });
 
-      // Soft delete stasiun
       await tx
         .update(devices)
         .set({
@@ -349,6 +320,39 @@ export class DeviceService extends BaseService {
 
     return this.success({
       message: `Stasiun '${id}' berhasil dinonaktifkan.`,
+    });
+  }
+
+  async getHealth(id: string, thresholdMinutes = 15) {
+    const device = await db.query.devices.findFirst({
+      where: and(eq(devices.id, id), isNull(devices.deletedAt)),
+      with: {
+        location: true,
+      },
+    });
+
+    if (!device) {
+      this.notFound("DEVICE_NOT_FOUND", `Stasiun cuaca dengan ID '${id}' tidak ditemukan`);
+    }
+
+    const isOffline = isDeviceOffline(device.lastSeenAt, thresholdMinutes);
+    const lastSeenTime = device.lastSeenAt ? new Date(device.lastSeenAt).getTime() : 0;
+    const minutesSinceLastSeen =
+      lastSeenTime > 0 ? Math.round((Date.now() - lastSeenTime) / (60 * 1000)) : null;
+
+    return this.success({
+      deviceId: device.id,
+      name: device.name,
+      status: device.status,
+      isOffline,
+      thresholdMinutes,
+      minutesSinceLastSeen,
+      lastSeenAt: device.lastSeenAt,
+      batteryV: device.batteryV,
+      isLowBattery: device.batteryV !== null && device.batteryV < 3.7,
+      rssi: device.rssi,
+      firmwareVersion: device.firmwareVersion,
+      location: device.location ? { id: device.location.id, name: device.location.name } : null,
     });
   }
 }
