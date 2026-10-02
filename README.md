@@ -6,7 +6,7 @@ Platform pemantauan telemetri stasiun cuaca berbasis Internet of Things (IoT) ya
 
 ## Daftar Isi
 
-1. [Ikhtisar Arsitektur](#ikhtisar-arsitektur)
+1. [Arsitektur](#arsitektur)
 2. [Prasyarat Sistem](#prasyarat-sistem)
 3. [Panduan Instalasi dan Menjalankan Sistem](#panduan-instalasi-dan-menjalankan-sistem)
    - [Opsi 1: Menjalankan Menggunakan Docker Compose (Direkomendasikan)](#opsi-1-menjalankan-menggunakan-docker-compose-direkomendasikan)
@@ -22,7 +22,7 @@ Platform pemantauan telemetri stasiun cuaca berbasis Internet of Things (IoT) ya
 
 ---
 
-## Ikhtisar Arsitektur
+## Arsitektur
 
 Sistem dibangun dengan arsitektur decoupled berbasis micro-service/modular monolith yang memisahkan beban kerja I/O ingestion, pengolahan latar belakang (worker), dan visualisasi frontend:
 
@@ -62,21 +62,25 @@ Sistem dibangun dengan arsitektur decoupled berbasis micro-service/modular monol
 ### Komponen Utama:
 
 1. **Ingestion API (`api/`)**:
+
    - Runtime: Bun v1.3+
    - Framework: Hono v4 (ringan, performa throughput tinggi, zero-overhead routing)
    - ORM: Drizzle ORM + PostgreSQL Driver
    - Keamanan: SHA-256 Pre-shared API Key verification untuk perangkat, JWT Bearer untuk manajemen pengguna/admin.
 
 2. **Database Engine (`db`)**:
+
    - Engine: PostgreSQL 18
    - Model Data Time-Series: Narrow/Long format pada tabel `sensor_readings` dengan composite index `(device_id, sensor_type_id, time DESC)`.
    - Agregasi Pre-calculated: Tabel `reading_aggregates` untuk query visualisasi jangka panjang (7 hari / 30 hari).
 
 3. **Cache & Worker Rollup (`worker/` & `redis`)**:
+
    - Antrean & Scheduler: Redis 7 + BullMQ
    - Fungsi Worker: Mengagregasi data mentah ke bucket 1 jam dan 1 hari secara asynchronous, menghitung rata-rata arah angin menggunakan dekomposisi vektor trigonometri `atan2(sum(sin), sum(cos))`.
 
 4. **Frontend Dashboard (`web/`)**:
+
    - Framework: Next.js 16 (App Router + Turbopack)
    - Styling: Tailwind CSS v4
    - Visualisasi: Recharts (Line Chart, Dual-Axis, Bar Chart curah hujan, Compass Wind)
@@ -98,7 +102,7 @@ Sebelum menjalankan proyek, pastikan perangkat Anda memiliki:
 
 ## Panduan Instalasi dan Menjalankan Sistem
 
-### Opsi 1: Menjalankan Menggunakan Docker Compose (Direkomendasikan)
+### Opsi 1: Menjalankan Menggunakan Docker Compose
 
 Seluruh stack (Database, Redis, API Ingestion, Worker BullMQ, dan Frontend Dashboard) dapat dijalankan dalam 1 langkah:
 
@@ -121,6 +125,7 @@ Seluruh stack (Database, Redis, API Ingestion, Worker BullMQ, dan Frontend Dashb
    ```
 
    Kontainer yang aktif:
+
    - `iot_db`: PostgreSQL 18 (Port 5432)
    - `iot_redis`: Redis 7 Alpine (Port 6379)
    - `iot_api`: Hono API Engine (Port 3001, otomatis migrasi & seed data 7 hari)
@@ -128,11 +133,13 @@ Seluruh stack (Database, Redis, API Ingestion, Worker BullMQ, dan Frontend Dashb
    - `iot_web`: Next.js Dashboard (Port 3000)
 
 4. Akses antarmuka:
+
    - Web Dashboard: http://localhost:3000
    - Healthcheck API: http://localhost:3001/healthz
    - Dashboard API Overview: http://localhost:3001/api/v1/dashboard/overview
 
 5. Mematikan kontainer:
+
    ```bash
    docker compose down
    ```
@@ -170,6 +177,7 @@ Jika ingin menjalankan aplikasi langsung pada host machine untuk kebutuhan devel
    ```
 
    Perintah ini akan membuat:
+
    - Akun admin default
    - Master data 7 tipe sensor
    - 3 stasiun cuaca (`WS-GRT-001`, `WS-CSR-002`, `WS-DPK-003`)
@@ -191,9 +199,11 @@ Jika ingin menjalankan aplikasi langsung pada host machine untuk kebutuhan devel
    ```
 
 7. Jalankan Frontend Web (pada terminal terpisah):
+
    ```bash
    bun run dev:web
    ```
+
    Aplikasi web akan berjalan di http://localhost:3000.
 
 ---
@@ -281,9 +291,9 @@ bun run simulate
 
 | Method  | Endpoint                         | Fungsi                                                    | Autentikasi        |
 | ------- | -------------------------------- | --------------------------------------------------------- | ------------------ |
-| `POST`  | `/api/v1/ingest/telemetry`       | Penerimaan data telemetri tunggal dari perangkat          | Header `X-API-Key` |
-| `POST`  | `/api/v1/ingest/telemetry/batch` | Penerimaan data telemetri batch (buffer offline, max 500) | Header `X-API-Key` |
-| `POST`  | `/api/v1/ingest/heartbeat`       | Pembaruan status kesehatan perangkat tanpa telemetri      | Header `X-API-Key` |
+| `POST`  | `/api/v1/ingest/telemetry`       | Penerimaan data telemetri tunggal dari perangkat          | Header`X-API-Key`  |
+| `POST`  | `/api/v1/ingest/telemetry/batch` | Penerimaan data telemetri batch (buffer offline, max 500) | Header`X-API-Key`  |
+| `POST`  | `/api/v1/ingest/heartbeat`       | Pembaruan status kesehatan perangkat tanpa telemetri      | Header`X-API-Key`  |
 | `GET`   | `/api/v1/dashboard/overview`     | Ringkasan status seluruh stasiun untuk overview           | Publik / Opsional  |
 | `GET`   | `/api/v1/devices/:id`            | Detail metadata dan pembacaan terkini satu stasiun        | Publik / Opsional  |
 | `GET`   | `/api/v1/readings`               | Time-series data telemetri (raw / downsampled 1h/1d)      | Publik / Opsional  |
@@ -306,22 +316,27 @@ Dokumentasi lengkap format skema JSON request dan response dapat dilihat pada [A
 ## Keputusan Desain dan Trade-off
 
 1. **Model Penyimpanan Append-Only pada Time-Series**:
+
    - _Keputusan_: Tabel `sensor_readings` bersifat strictly append-only (tidak pernah ada operasi `UPDATE`).
    - _Alasan_: Menghindari row-locking, fragmentasi disk (table bloat di PostgreSQL akibat MVCC), serta memastikan integritas audit data iklim historis.
 
 2. **Format Narrow/Long vs Wide**:
+
    - _Keputusan_: Format Narrow/Long pada database (`id`, `device_id`, `sensor_type_id`, `time`, `raw_value`, `value`, `quality_flag`), namun otomatis di-pivot menjadi format Wide pada endpoint API untuk kebutuhan grafik chart frontend.
    - _Trade-off_: Format Narrow memerlukan baris lebih banyak (~184 juta baris per tahun untuk 50 stasiun), tetapi memberikan fleksibilitas penuh di mana penambahan tipe sensor baru tidak membutuhkan migrasi DDL `ALTER TABLE`.
 
 3. **Agregasi Asynchronous Berkelanjutan (BullMQ) vs Continuous Aggregates**:
+
    - _Keputusan_: Menggunakan BullMQ worker untuk downsampling berkala ke tabel `reading_aggregates`.
    - _Alasan_: Memberikan kompatibilitas penuh pada PostgreSQL vanilla tanpa dependensi ekstensi proprietary luar, sekaligus memisahkan beban komputasi analitik berat dari request ingestion HTTP.
 
 4. **Kalkulasi Vektor Trigonometri untuk Arah Angin**:
+
    - _Keputusan_: Tidak menggunakan rata-rata aritmatika biasa untuk arah angin (0 - 360 derajat).
    - _Implementasi_: Mengubah setiap derajat ke radian, menghitung vektor komponen sumbu X (`cos`) dan Y (`sin`), kemudian mengembalikan derajat rata-rata menggunakan fungsi `atan2(sum_sin, sum_cos)`.
 
 5. **Pemisahan Autentikasi Publik dan Manajemen**:
+
    - _Keputusan_: Endpoint pemantauan baca (`GET /dashboard/overview`, `GET /devices/:id`, `GET /readings`) menggunakan middleware `optionalAuth`, sedangkan operasi mutasi data dan pendaftaran perangkat mewajibkan `requireAdmin`.
    - _Alasan_: Memungkinkan dashboard publik dan layar display stasiun memantau cuaca tanpa hambatan token kedaluwarsa, namun sistem tetap terlindungi dari manipulasi data tidak sah.
 
